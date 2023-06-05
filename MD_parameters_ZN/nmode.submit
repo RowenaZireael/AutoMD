@@ -1,0 +1,14 @@
+#!/bin/bash -l
+#PBS -P p39
+#PBS -l wd
+#PBS -q normal
+#PBS -l walltime=10:00:00,mem=32000mb,ncpus=16,storage=scratch/p39
+module load openmpi/4.1.2
+module load gromacs/2022
+conda activate gmxMMPBSA
+
+
+mpirun -np 16 gmx_MMPBSA MPI -O -i nmode.in -cs femd.tpr -ci index.ndx -cg 1 14 -ct femd_fit.xtc -lm ligand.mol2 -o entropy_RESULTS_MMPBSA.dat -eo entropy_RESULTS_MMPBSA.csv  -nogui
+rm -f _*
+
+

@@ -1,0 +1,10 @@
+#!/bin/bash
+#PBS -P p39
+#PBS -l wd
+#PBS -q normal
+#PBS -l walltime=1:00:00,mem=8000mb,ncpus=12,storage=scratch/p39
+
+module load gromacs/2022
+gmx grompp -f em.mdp -c solv_ions.gro -p topol.top -o em.tpr
+gmx mdrun -v -deffnm em
+

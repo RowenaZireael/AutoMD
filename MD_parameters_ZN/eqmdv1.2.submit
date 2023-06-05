@@ -1,0 +1,67 @@
+#!/bin/bash
+#PBS -P p39
+#PBS -l wd
+#PBS -q gpuvolta
+#PBS -l walltime=10:00:00,mem=16000mb,ncpus=12,ngpus=1,storage=scratch/p39
+
+module load gromacs/2022-gpuvolta
+
+echo -e "del 23\n15 | 21\nname 23 Water_and_ions\n1 | 13 | 14\nname 24 Protein_MOL\nq" | gmx make_ndx -f em.gro -o index.ndx
+
+gmx grompp -f nvt.mdp -c em.gro -r em.gro -p topol.top -n index.ndx -o nvt.tpr
+
+gmx mdrun -deffnm nvt -nb gpu -pme gpu -bonded gpu -update gpu
+
+gmx grompp -f npt.mdp -c nvt.gro -t nvt.cpt -r nvt.gro -p topol.top -n index.ndx -o npt.tpr
+
+gmx mdrun -deffnm npt -nb gpu -pme gpu -bonded gpu -update gpu
+
+gmx grompp -f md.mdp -c npt.gro -t npt.cpt -p topol.top -n index.ndx -o md.tpr
+
+gmx mdrun -deffnm md -nb gpu -pme gpu -bonded gpu -update gpu
+
+echo -e "Protein\nSystem" | gmx trjconv -s md.tpr -f md.xtc -o md_center.xtc -center -pbc mol -ur compact
+
+echo -e "Backbone\nSystem" | gmx trjconv -s md.tpr -f md_center.xtc -o md_fit.xtc -fit rot+trans
+
+echo "System" | gmx trjconv -s md.tpr -f md_fit.xtc -o start.pdb -dump 0
+
+echo "System" | gmx trjconv -s md.tpr -f md_fit.xtc -o end.pdb -dump 200000
+
+echo -e "1\n14" | gmx hbond -s md.tpr -f md_center.xtc -n index.ndx -num hbond_num.xvg
+
+echo -e "14 & ! a H*\nname 25 MOL_Heavy\nq" | gmx make_ndx -f em.gro -n index.ndx
+
+echo -e "Backbone\nBackbone" | gmx rms -s md.tpr -f md_center.xtc -o rmsd_backbone.xvg -tu ns
+
+#echo -e "14\n14" | gmx rms -s md.tpr -f md_center.xtc -o rmsd_MOL_MOL.xvg -tu ns
+
+echo -e "25\n25" | gmx rms -s md.tpr -f md_center.xtc -n index.ndx -o rmsd_MOLH_MOLH.xvg -tu ns
+
+echo -e "Backbone\n25" | gmx rms -s md.tpr -f md_center.xtc -n index.ndx -o rmsd_backbone_MOLH.xvg -tu ns
+mkdir Free_Energy
+mkdir decomp
+for i in {1..50}
+do  
+  mkdir "FE_$i"
+  cp md.gro "FE_$i"
+  cp topol.top "FE_$i"  
+  cp index.ndx "FE_$i"  
+  cp *.itp "FE_$i"
+  cp femd.mdp "FE_$i" 
+  cp nvt.mdp "FE_$i" 
+  cp npt.mdp "FE_$i" 
+  cp femd.submit "FE_$i"
+  cp mm.submit "FE_$i"
+  cp nmode.submit "FE_$i"
+  cp nmode.in "FE_$i"
+  cp ligand.mol2 "FE_$i"
+  cp mmpbsa.in "FE_$i"
+  cp -r amber14sb_parmbsc1.ff "FE_$i"
+  cd "FE_$i"
+  work1=$(qsub femd.submit)
+  work2=$(qsub -W depend=afterok:$work1 mm.submit)
+  qsub -W depend=afterok:$work2 nmode.submit
+  cd ..  
+done 
+

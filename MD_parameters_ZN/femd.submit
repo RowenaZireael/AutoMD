@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -P p39
+#PBS -l wd
+#PBS -q gpuvolta
+#PBS -l walltime=01:00:00,mem=16000mb,ncpus=12,ngpus=1,storage=scratch/p39
+
+module load gromacs/2022-gpuvolta
+
+
+gmx grompp -f nvt.mdp -c md.gro -r md.gro -p topol.top -n index.ndx -o nvt.tpr
+
+gmx mdrun -deffnm nvt -nb gpu -pme gpu -bonded gpu -update gpu
+
+gmx grompp -f npt.mdp -c nvt.gro -t nvt.cpt -r nvt.gro -p topol.top -n index.ndx -o npt.tpr
+
+gmx mdrun -deffnm npt -nb gpu -pme gpu -bonded gpu -update gpu
+
+gmx grompp -f femd.mdp -o femd.tpr -c npt.gro -t npt.cpt -p topol.top -n index.ndx 
+
+gmx mdrun -deffnm femd -pme gpu -nb gpu -bonded gpu -update gpu
+echo -e "Protein\nSystem" | gmx trjconv -s femd.tpr -f femd.xtc -o femd_center.xtc -center -pbc mol -ur compact
+echo -e "Protein\nSystem" | gmx trjconv -s femd.tpr -f femd_center.xtc -o femd_fit.xtc -fit rot+trans
+

@@ -1,0 +1,14 @@
+#!/bin/bash -l
+#PBS -P p39
+#PBS -l wd
+#PBS -q normal
+#PBS -l walltime=01:00:00,mem=32000mb,ncpus=32,storage=scratch/p39
+module load openmpi/4.1.2
+module load gromacs/2022
+conda activate gmxMMPBSA
+
+
+mpirun -np 32 gmx_MMPBSA MPI -O -i mmpbsa.in -cs femd.tpr -ci index.ndx -cg 1 14 -ct femd_fit.xtc -lm ligand.mol2 -o "enthalpy_RESULTS_MMPBSA.dat" -eo FINAL_RESULTS_MMPBSA.csv -do "decomp.dat" -nogui
+rm -f _*
+
+
