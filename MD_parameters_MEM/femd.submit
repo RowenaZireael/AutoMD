@@ -1,0 +1,26 @@
+#!/bin/bash
+#PBS -P p39
+#PBS -l wd
+#PBS -q gpuvolta
+#PBS -l walltime=01:00:00,mem=16000mb,ncpus=12,ngpus=1,storage=scratch/p39
+
+module load gromacs/2022-gpuvolta
+
+gmx grompp -f step6.1_equilibration.mdp -c md.gro -r md.gro -p topol.top -o eq1.tpr -n index.ndx
+gmx mdrun -deffnm eq1 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.2_equilibration.mdp -c eq1.gro -r eq1.gro -p topol.top -o eq2.tpr -n index.ndx
+gmx mdrun -deffnm eq2 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.3_equilibration.mdp -c eq2.gro -r eq2.gro -p topol.top -o eq3.tpr -n index.ndx
+gmx mdrun -deffnm eq3 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.4_equilibration.mdp -c eq3.gro -r eq3.gro -p topol.top -o eq4.tpr -n index.ndx
+gmx mdrun -deffnm eq4 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.5_equilibration.mdp -c eq4.gro -r eq4.gro -p topol.top -o eq5.tpr -n index.ndx
+gmx mdrun -deffnm eq5 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.6_equilibration.mdp -c eq5.gro -r eq5.gro -p topol.top -o eq6.tpr -n index.ndx
+gmx mdrun -deffnm eq6 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f femd.mdp -o femd.tpr -c eq6.gro -p topol.top -n index.ndx 
+gmx mdrun -deffnm femd -pme gpu -nb gpu -bonded gpu -update gpu
+
+echo -e "System" | gmx trjconv -s femd.tpr -f femd.xtc -o femd_center.xtc -pbc mol -ur compact
+
+

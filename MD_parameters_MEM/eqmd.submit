@@ -1,0 +1,58 @@
+#!/bin/bash -l
+#PBS -P p39
+#PBS -l wd
+#PBS -q gpuvolta
+#PBS -l walltime=20:00:00,mem=8000mb,ncpus=12,ngpus=1,storage=scratch/p39
+
+module load gromacs/2022-gpuvolta 
+gmx grompp -f step6.1_equilibration.mdp -c em.gro -r em.gro -p topol.top -o eq1.tpr -n index.ndx
+gmx mdrun -deffnm eq1 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.2_equilibration.mdp -c eq1.gro -r eq1.gro -p topol.top -o eq2.tpr -n index.ndx
+gmx mdrun -deffnm eq2 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.3_equilibration.mdp -c eq2.gro -r eq2.gro -p topol.top -o eq3.tpr -n index.ndx
+gmx mdrun -deffnm eq3 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.4_equilibration.mdp -c eq3.gro -r eq3.gro -p topol.top -o eq4.tpr -n index.ndx
+gmx mdrun -deffnm eq4 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.5_equilibration.mdp -c eq4.gro -r eq4.gro -p topol.top -o eq5.tpr -n index.ndx
+gmx mdrun -deffnm eq5 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step6.6_equilibration.mdp -c eq5.gro -r eq5.gro -p topol.top -o eq6.tpr -n index.ndx
+gmx mdrun -deffnm eq6 -pme gpu -nb gpu -bonded gpu -update gpu
+gmx grompp -f step7_production.mdp -o md.tpr -c eq6.gro -p topol.top -n index.ndx
+gmx mdrun -deffnm md -pme gpu -nb gpu -bonded gpu -update gpu
+echo "System" | gmx trjconv -s md.tpr -f md.xtc -o md_center.xtc -pbc mol -ur compact
+echo "System" | gmx trjconv -s md.tpr -f md_center.xtc -o start.pdb -dump 0
+echo "System" | gmx trjconv -s md.tpr -f md_center.xtc -o end.pdb -dump 200000
+echo -e "1\n19" | gmx hbond -s md.tpr -f md_center.xtc -n index.ndx -num hbond_num.xvg
+echo -e "19 & ! a H*\nname 32 MOL_Heavy\nq" | gmx make_ndx -f em.gro -n index.ndx
+echo -e "Backbone\nBackbone" | gmx rms -s md.tpr -f md_center.xtc -o rmsd_backbone.xvg -tu ns
+echo -e "32\n32" | gmx rms -s md.tpr -f md_center.xtc -n index.ndx -o rmsd_MOLH_MOLH.xvg -tu ns
+echo -e "Backbone\n32" | gmx rms -s md.tpr -f md_center.xtc -n index.ndx -o rmsd_backbone_MOLH.xvg -tu ns
+mkdir Free_Energy
+mkdir decomp 
+
+conda activate /scratch/p39/yz3521/conda_MDAnalysis
+python Protein_depth.py
+conda deactivate
+
+for i in {1..50}
+do  
+  mkdir "FE_$i"
+  cp md.gro "FE_$i"
+  cp topol.top "FE_$i"  
+  cp index.ndx "FE_$i"  
+  cp *.itp "FE_$i"
+  cp *.mdp "FE_$i" 
+  cp femd.submit "FE_$i"
+  cp mm.submit "FE_$i"
+  #cp nmode.submit "FE_$i"
+  #cp nmode.in "FE_$i"  
+  cp mmpbsa.in "FE_$i"
+  cp ligand.mol2 "FE_$i"
+  cp mem_pro_info_mmpbsa.py "FE_$i"
+  cp -r toppar "FE_$i"
+  cd "FE_$i"
+  rm -f step6.0_minimization.mdp
+  work1=$(qsub femd.submit)
+  qsub -W depend=afterok:$work1 mm.submit
+  cd ..  
+done

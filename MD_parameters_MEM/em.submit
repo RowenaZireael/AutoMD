@@ -1,0 +1,11 @@
+#!/bin/bash
+#PBS -P p39
+#PBS -l wd
+#PBS -q normal
+#PBS -l walltime=1:00:00,mem=8000mb,ncpus=12,storage=scratch/p39
+
+module load gromacs/2022
+gmx grompp -f step6.0_minimization.mdp -c step5_input.gro -r step5_input.gro -p topol.top -o em.tpr
+gmx mdrun -v -deffnm em
+
+echo -e "1 | 13 | 19\nname 28 SOLU\n14 | 15 | 16\nname 29 MEMB\n17 | 18\nname 30 SOLV\n28 | 29\nname 31 SOLU_MEMB\nq" | gmx make_ndx -f em.gro -o index.ndx
